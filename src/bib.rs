@@ -74,6 +74,36 @@ impl Parser<'_> {
         Err("a brace is never closed".into())
     }
 
+    /// The inside of a "..." value. A quote inside braces doesn't end it,
+    /// which is how BibTeX lets you write {"} in a quoted title.
+    fn quoted(&mut self) -> Result<String, String> {
+        self.expect(b'"')?;
+        let start = self.pos;
+        let mut depth = 0;
+        while let Some(c) = self.peek() {
+            self.pos += 1;
+            match c {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                b'"' if depth == 0 => {
+                    return Ok(String::from_utf8_lossy(&self.src[start..self.pos - 1]).into_owned());
+                }
+                _ => {}
+            }
+        }
+        Err("a quote is never closed".into())
+    }
+
+    fn value(&mut self) -> Result<String, String> {
+        self.skip_space();
+        match self.peek() {
+            Some(b'{') => self.braced(),
+            Some(b'"') => self.quoted(),
+            Some(c) if c.is_ascii_digit() => Ok(self.word()),
+            _ => Err("expected a value in braces, quotes or a number".into()),
+        }
+    }
+
     fn entry(&mut self) -> Result<Entry, String> {
         let kind = self.word().to_lowercase();
         self.expect(b'{')?;
@@ -99,8 +129,7 @@ impl Parser<'_> {
                 return Err(format!("expected a field name in {key}"));
             }
             self.expect(b'=')?;
-            self.skip_space();
-            let value = self.braced()?;
+            let value = self.value()?;
             fields.push((name, value));
         }
         Ok(Entry { kind, key, fields })
