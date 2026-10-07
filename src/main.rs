@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use bibtidy::bib::{Bib, parse};
 use bibtidy::tidy::{self, SortBy};
-use bibtidy::write;
+use bibtidy::{keys, write};
 
 #[derive(Parser)]
 #[command(version, about = "Format, check and de-duplicate BibTeX files")]
@@ -29,6 +29,14 @@ enum Command {
         /// Sort the entries; by default they stay in file order
         #[arg(long, value_enum)]
         sort: Option<Sort>,
+    },
+    /// Rename citation keys to lastname, year, first title word
+    Keys {
+        /// The .bib file to read
+        file: PathBuf,
+        /// Save the renamed entries back to the file instead of only listing changes
+        #[arg(short, long)]
+        write: bool,
     },
 }
 
@@ -55,6 +63,24 @@ fn main() -> Result<()> {
                 std::fs::write(&file, out).with_context(|| format!("couldn't write {}", file.display()))?;
             } else {
                 print!("{out}");
+            }
+        }
+        Command::Keys { file, write } => {
+            let mut bib = load(&file)?;
+            let new = keys::assign(&bib.entries);
+            let mut changed = 0;
+            for (e, k) in bib.entries.iter_mut().zip(new) {
+                if e.key != k {
+                    println!("{} -> {k}", e.key);
+                    e.key = k;
+                    changed += 1;
+                }
+            }
+            if changed == 0 {
+                eprintln!("Every key already follows the pattern.");
+            } else if write {
+                std::fs::write(&file, write::bib(&bib)).with_context(|| format!("couldn't write {}", file.display()))?;
+                eprintln!("Renamed {changed} keys in {}. Citations in your .tex files still use the old ones.", file.display());
             }
         }
     }
