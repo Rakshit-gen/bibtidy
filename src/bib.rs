@@ -17,9 +17,26 @@ impl Entry {
     }
 }
 
+const MONTHS: [(&str, &str); 12] = [
+    ("jan", "January"),
+    ("feb", "February"),
+    ("mar", "March"),
+    ("apr", "April"),
+    ("may", "May"),
+    ("jun", "June"),
+    ("jul", "July"),
+    ("aug", "August"),
+    ("sep", "September"),
+    ("oct", "October"),
+    ("nov", "November"),
+    ("dec", "December"),
+];
+
 struct Parser<'a> {
     src: &'a [u8],
     pos: usize,
+    /// @string abbreviations seen so far, with lower-case names.
+    macros: Vec<(String, String)>,
 }
 
 impl Parser<'_> {
@@ -94,18 +111,60 @@ impl Parser<'_> {
         Err("a quote is never closed".into())
     }
 
-    fn value(&mut self) -> Result<String, String> {
+    /// One piece of a value: braces, quotes, a number or an @string name.
+    fn part(&mut self) -> Result<String, String> {
         self.skip_space();
         match self.peek() {
             Some(b'{') => self.braced(),
             Some(b'"') => self.quoted(),
             Some(c) if c.is_ascii_digit() => Ok(self.word()),
-            _ => Err("expected a value in braces, quotes or a number".into()),
+            _ => {
+                let name = self.word().to_lowercase();
+                if name.is_empty() {
+                    return Err("expected a value in braces, quotes, a number or an @string name".into());
+                }
+                let defined = self.macros.iter().find(|(n, _)| *n == name).map(|(_, v)| v.as_str());
+                let month = MONTHS.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
+                defined
+                    .or(month)
+                    .map(str::to_string)
+                    .ok_or_else(|| format!("{name} isn't defined with @string"))
+            }
         }
     }
 
-    fn entry(&mut self) -> Result<Entry, String> {
-        let kind = self.word().to_lowercase();
+    /// A whole value, which can join several parts with #.
+    fn value(&mut self) -> Result<String, String> {
+        let mut out = self.part()?;
+        loop {
+            self.skip_space();
+            if self.peek() != Some(b'#') {
+                return Ok(out);
+            }
+            self.pos += 1;
+            out += &self.part()?;
+        }
+    }
+
+    /// @string{name = value}, which can also use parentheses.
+    fn string_def(&mut self) -> Result<(), String> {
+        self.skip_space();
+        let close = match self.peek() {
+            Some(b'{') => b'}',
+            Some(b'(') => b')',
+            _ => return Err("expected '{' after @string".into()),
+        };
+        self.pos += 1;
+        let name = self.word().to_lowercase();
+        self.expect(b'=')?;
+        let value = self.value()?;
+        self.expect(close)?;
+        self.macros.retain(|(n, _)| *n != name);
+        self.macros.push((name, value));
+        Ok(())
+    }
+
+    fn entry(&mut self, kind: String) -> Result<Entry, String> {
         self.expect(b'{')?;
         let key = self.word();
         let mut fields = Vec::new();
@@ -139,11 +198,20 @@ impl Parser<'_> {
 /// Reads every entry in a .bib file. Text outside entries is ignored, the way
 /// BibTeX itself ignores it.
 pub fn parse(text: &str) -> Result<Vec<Entry>, String> {
-    let mut p = Parser { src: text.as_bytes(), pos: 0 };
+    let mut p = Parser {
+        src: text.as_bytes(),
+        pos: 0,
+        macros: Vec::new(),
+    };
     let mut out = Vec::new();
     while let Some(at) = text[p.pos..].find('@') {
         p.pos += at + 1;
-        out.push(p.entry()?);
+        let kind = p.word().to_lowercase();
+        if kind == "string" {
+            p.string_def()?;
+        } else {
+            out.push(p.entry(kind)?);
+        }
     }
     Ok(out)
 }
