@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use bibtidy::bib::{Bib, parse};
-use bibtidy::write;
+use bibtidy::{tidy, write};
 
 #[derive(Parser)]
 #[command(version, about = "Format, check and de-duplicate BibTeX files")]
@@ -22,13 +22,19 @@ enum Command {
         /// Overwrite the file instead of printing the result
         #[arg(short, long)]
         in_place: bool,
+        /// Leave fields in the order they were written
+        #[arg(long)]
+        keep_order: bool,
     },
 }
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::Fmt { file, in_place } => {
-            let bib = load(&file)?;
+        Command::Fmt { file, in_place, keep_order } => {
+            let mut bib = load(&file)?;
+            if !keep_order {
+                bib.entries.iter_mut().for_each(tidy::order_fields);
+            }
             let out = write::bib(&bib);
             if in_place {
                 std::fs::write(&file, out).with_context(|| format!("couldn't write {}", file.display()))?;
