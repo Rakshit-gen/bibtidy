@@ -129,3 +129,28 @@ pub fn fold(s: &str) -> String {
     }
     out.trim_end().to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accents_in_every_spelling() {
+        assert_eq!(plain(r#"G\"{o}del, G\"odel, {\"o}, \'{e}cole, \c{c}a"#), "Gödel, Gödel, ö, école, ça");
+        assert_eq!(plain(r#"Erd\H{o}s and \v{S}koda, Pe\~na, na\"{\i}ve"#), "Erdős and Škoda, Peña, naïve");
+    }
+
+    #[test]
+    fn letters_escapes_and_commands() {
+        assert_eq!(plain(r#"Stra\ss e, \o{}re, \AA{}ngstr\"om"#), "Straße, øre, Ångström");
+        assert_eq!(plain(r"R\&D at 50\% in \emph{one}~go"), "R&D at 50% in one go");
+        assert_eq!(plain("{DNA} {S}tructure"), "DNA Structure");
+    }
+
+    #[test]
+    fn folding_makes_spellings_match() {
+        assert_eq!(fold(r#"G\"{o}del's {T}heorem: A~Proof"#), "godel s theorem a proof");
+        assert_eq!(fold("Gödel’s theorem -- a proof"), "godel s theorem a proof");
+        assert_eq!(fold(r"Stra\ss e"), "strasse");
+    }
+}
