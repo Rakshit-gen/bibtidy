@@ -32,6 +32,23 @@ pub fn order_fields(e: &mut Entry) {
     e.fields.sort_by_key(|(name, _)| rank(name));
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SortBy {
+    Key,
+    /// Oldest first, entries without a year last, ties by key.
+    Year,
+}
+
+pub fn sort_entries(entries: &mut [Entry], by: SortBy) {
+    match by {
+        SortBy::Key => entries.sort_by_key(|e| e.key.to_lowercase()),
+        SortBy::Year => entries.sort_by_key(|e| {
+            let year = e.get("year").and_then(|y| y.trim().parse::<i32>().ok());
+            (year.is_none(), year, e.key.to_lowercase())
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,5 +60,16 @@ mod tests {
         order_fields(&mut e);
         let names: Vec<_> = e.fields.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, ["author", "title", "year", "doi", "note"]);
+    }
+
+    #[test]
+    fn sorts_by_key_or_year() {
+        let mut bib = parse("@misc{b, year={2001}}\n@misc{A, year={1999}}\n@misc{c}\n@misc{d, year={1999}}").unwrap();
+        sort_entries(&mut bib.entries, SortBy::Key);
+        let keys: Vec<_> = bib.entries.iter().map(|e| e.key.as_str()).collect();
+        assert_eq!(keys, ["A", "b", "c", "d"]);
+        sort_entries(&mut bib.entries, SortBy::Year);
+        let keys: Vec<_> = bib.entries.iter().map(|e| e.key.as_str()).collect();
+        assert_eq!(keys, ["A", "d", "b", "c"]);
     }
 }
