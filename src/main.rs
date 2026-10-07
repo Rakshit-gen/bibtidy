@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use bibtidy::bib::{Bib, parse};
 use bibtidy::tidy::{self, SortBy};
-use bibtidy::{check, keys, write};
+use bibtidy::{check, dupes, keys, write};
 
 #[derive(Parser)]
 #[command(version, about = "Format, check and de-duplicate BibTeX files")]
@@ -48,6 +48,11 @@ enum Command {
         /// Don't warn about capitals in titles
         #[arg(long)]
         no_caps: bool,
+    },
+    /// List entries that look like the same work; exits 1 if any
+    Dupes {
+        /// The .bib file to read
+        file: PathBuf,
     },
 }
 
@@ -114,6 +119,20 @@ fn main() -> Result<()> {
             } else {
                 let n = problems.len();
                 eprintln!("{n} problem{} in {} entries.", if n == 1 { "" } else { "s" }, bib.entries.len());
+                std::process::exit(1);
+            }
+        }
+        Command::Dupes { file } => {
+            let bib = load(&file)?;
+            let pairs = dupes::find(&bib.entries);
+            for p in &pairs {
+                let (a, b) = (&bib.entries[p.first], &bib.entries[p.second]);
+                println!("{} and {}: {}", a.key, b.key, p.reason);
+                println!("    {}", bibtidy::text::plain(a.get("title").unwrap_or("(no title)")));
+            }
+            if pairs.is_empty() {
+                eprintln!("No duplicates among {} entries.", bib.entries.len());
+            } else {
                 std::process::exit(1);
             }
         }
