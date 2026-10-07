@@ -48,3 +48,38 @@ pub fn missing_fields(e: &Entry) -> Vec<Problem> {
         })
         .collect()
 }
+
+/// Values that are present but look wrong.
+pub fn bad_values(e: &Entry) -> Vec<Problem> {
+    let mut out = Vec::new();
+    let mut say = |message: String| out.push(Problem { key: e.key.clone(), message });
+    if let Some(year) = e.get("year") {
+        let year = year.trim();
+        if !(year.len() == 4 && year.chars().all(|c| c.is_ascii_digit())) {
+            say(format!("year \"{year}\" isn't a four-digit year"));
+        }
+    }
+    if let Some(pages) = e.get("pages") {
+        // 12-34 prints as a hyphen; a page range wants an en dash, 12--34.
+        let b = pages.as_bytes();
+        let single = (1..b.len().saturating_sub(1))
+            .any(|i| b[i] == b'-' && b[i - 1].is_ascii_digit() && b[i + 1].is_ascii_digit());
+        if single {
+            say(format!("pages \"{pages}\" should use -- for a range"));
+        }
+    }
+    if let Some(doi) = e.get("doi") {
+        let doi = doi.trim();
+        if doi.contains("doi.org/") {
+            say(format!("doi \"{doi}\" is a link; the field wants just the 10.xxxx/... part"));
+        } else if !doi.starts_with("10.") {
+            say(format!("doi \"{doi}\" doesn't start with 10."));
+        }
+    }
+    if let Some(url) = e.get("url") {
+        if url.trim().contains(char::is_whitespace) {
+            say("url has spaces in it".into());
+        }
+    }
+    out
+}
