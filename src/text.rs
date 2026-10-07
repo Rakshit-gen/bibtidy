@@ -28,8 +28,13 @@ const LETTERS: &[(&str, &str)] = &[
 ];
 
 /// Readable text from a BibTeX value: accents become real letters, braces go,
-/// and the escapes \& \% \$ \_ \# and ~ become what they print as.
+/// the escapes \& \% \$ \_ \# and ~ become what they print as, and line
+/// breaks and runs of spaces become single spaces.
 pub fn plain(s: &str) -> String {
+    latex_to_text(s).split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn latex_to_text(s: &str) -> String {
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::with_capacity(s.len());
     let mut i = 0;
@@ -146,6 +151,7 @@ mod tests {
         assert_eq!(plain(r#"Stra\ss e, \o{}re, \AA{}ngstr\"om"#), "Straße, øre, Ångström");
         assert_eq!(plain(r"R\&D at 50\% in \emph{one}~go"), "R&D at 50% in one go");
         assert_eq!(plain("{DNA} {S}tructure"), "DNA Structure");
+        assert_eq!(plain("Two\n      lines"), "Two lines");
     }
 
     #[test]
