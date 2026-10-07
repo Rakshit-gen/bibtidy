@@ -132,6 +132,37 @@ pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
     }]
 }
 
+/// Keys used by more than one entry. BibTeX silently uses the first.
+/// Keys are compared ignoring case, as BibTeX does.
+pub fn duplicate_keys(entries: &[Entry]) -> Vec<Problem> {
+    let mut out = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        let earlier = entries[..i].iter().any(|o| o.key.eq_ignore_ascii_case(&e.key));
+        if earlier {
+            out.push(Problem {
+                key: e.key.clone(),
+                message: "the key is used by an earlier entry too".into(),
+            });
+        }
+    }
+    out
+}
+
+/// Every check, in file order.
+pub fn all(entries: &[Entry], caps: bool) -> Vec<Problem> {
+    let mut out = duplicate_keys(entries);
+    for e in entries {
+        out.extend(missing_fields(e));
+        out.extend(bad_values(e));
+        if caps {
+            out.extend(unprotected_caps(e));
+        }
+    }
+    let order = |key: &str| entries.iter().position(|e| e.key == key);
+    out.sort_by_key(|p| order(&p.key));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,5 +217,13 @@ mod tests {
         );
         let e = entry(r"@misc{b, title={A Plain Title With Initial Capitals}}");
         assert!(unprotected_caps(&e).is_empty());
+    }
+
+    #[test]
+    fn duplicate_keys_ignore_case() {
+        let bib = parse("@misc{Smith, note={a}}\n@misc{jones, note={b}}\n@misc{smith, note={c}}").unwrap();
+        let p = duplicate_keys(&bib.entries);
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].key, "smith");
     }
 }

@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use bibtidy::bib::{Bib, parse};
 use bibtidy::tidy::{self, SortBy};
-use bibtidy::{keys, write};
+use bibtidy::{check, keys, write};
 
 #[derive(Parser)]
 #[command(version, about = "Format, check and de-duplicate BibTeX files")]
@@ -40,6 +40,14 @@ enum Command {
         /// Also update \cite commands in these .tex files (needs --write)
         #[arg(long, requires = "write")]
         tex: Vec<PathBuf>,
+    },
+    /// List missing fields, odd values and duplicate keys; exits 1 if any
+    Check {
+        /// The .bib file to read
+        file: PathBuf,
+        /// Don't warn about capitals in titles
+        #[arg(long)]
+        no_caps: bool,
     },
 }
 
@@ -93,6 +101,20 @@ fn main() -> Result<()> {
                 if tex.is_empty() {
                     eprintln!("Citations in your .tex files still use the old keys; pass them with --tex to update them.");
                 }
+            }
+        }
+        Command::Check { file, no_caps } => {
+            let bib = load(&file)?;
+            let problems = check::all(&bib.entries, !no_caps);
+            for p in &problems {
+                println!("{}: {}", p.key, p.message);
+            }
+            if problems.is_empty() {
+                eprintln!("{} entries, no problems found.", bib.entries.len());
+            } else {
+                let n = problems.len();
+                eprintln!("{n} problem{} in {} entries.", if n == 1 { "" } else { "s" }, bib.entries.len());
+                std::process::exit(1);
             }
         }
     }
