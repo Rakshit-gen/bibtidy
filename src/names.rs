@@ -144,3 +144,45 @@ fn split_commas(s: &str) -> Vec<&str> {
     out.push(&s[start..]);
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn last_names(field: &str) -> Vec<String> {
+        split_authors(field).into_iter().map(|n| n.last).collect()
+    }
+
+    #[test]
+    fn both_name_orders() {
+        let n = parse_name("Donald E. Knuth");
+        assert_eq!((n.first.as_str(), n.last.as_str()), ("Donald E.", "Knuth"));
+        let n = parse_name("Knuth, Donald E.");
+        assert_eq!((n.first.as_str(), n.last.as_str()), ("Donald E.", "Knuth"));
+    }
+
+    #[test]
+    fn von_parts_and_jr() {
+        let n = parse_name("Ludwig van Beethoven");
+        assert_eq!((n.von.as_str(), n.last.as_str()), ("van", "Beethoven"));
+        let n = parse_name("Jean de la Fontaine");
+        assert_eq!((n.first.as_str(), n.von.as_str(), n.last.as_str()), ("Jean", "de la", "Fontaine"));
+        let n = parse_name("van der Waals, Johannes");
+        assert_eq!((n.von.as_str(), n.last.as_str()), ("van der", "Waals"));
+        let n = parse_name("King, Jr, Martin Luther");
+        assert_eq!((n.last.as_str(), n.jr.as_str(), n.first.as_str()), ("King", "Jr", "Martin Luther"));
+    }
+
+    #[test]
+    fn braces_keep_names_whole() {
+        assert_eq!(last_names("{Barnes and Noble} and Smith, J."), ["{Barnes and Noble}", "Smith"]);
+        assert_eq!(last_names("{World Health Organization}"), ["{World Health Organization}"]);
+    }
+
+    #[test]
+    fn splitting_lists() {
+        assert_eq!(last_names("A. Turing AND Alonzo Church and others"), ["Turing", "Church"]);
+        assert_eq!(last_names("Sandy Andrews and Ann Anderson"), ["Andrews", "Anderson"]);
+        assert_eq!(last_names("Plato"), ["Plato"]);
+    }
+}
