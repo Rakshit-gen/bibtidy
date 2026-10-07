@@ -131,3 +131,60 @@ pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
         message: format!("title has capitals most styles will lower-case; write {}", braced.join(", ")),
     }]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bib::parse;
+
+    fn entry(src: &str) -> Entry {
+        parse(src).unwrap().entries.remove(0)
+    }
+
+    fn messages(problems: Vec<Problem>) -> Vec<String> {
+        problems.into_iter().map(|p| p.message).collect()
+    }
+
+    #[test]
+    fn missing_fields_and_alternatives() {
+        let e = entry("@article{a, author={X}, title={T}}");
+        assert_eq!(messages(missing_fields(&e)), ["missing journal", "missing year"]);
+        let e = entry("@book{b, editor={E}, title={T}, publisher={P}, year=2000}");
+        assert!(missing_fields(&e).is_empty());
+        let e = entry("@book{c, title={T}, publisher={P}, year=2000}");
+        assert_eq!(messages(missing_fields(&e)), ["missing author or editor"]);
+        let e = entry("@article{d, author={ }, title={T}, journal={J}, year=1}");
+        assert_eq!(messages(missing_fields(&e)), ["missing author"]);
+        let e = entry("@webpage{w, title={T}}");
+        assert_eq!(messages(missing_fields(&e)), ["@webpage isn't a standard entry type"]);
+    }
+
+    #[test]
+    fn values_that_look_wrong() {
+        let e = entry("@misc{a, year={99}, pages={12-34}, doi={https://doi.org/10.1000/xyz}, url={http://a b}}");
+        assert_eq!(
+            messages(bad_values(&e)),
+            [
+                "year \"99\" isn't a four-digit year",
+                "pages \"12-34\" should use -- for a range",
+                "doi \"https://doi.org/10.1000/xyz\" is a link; the field wants just the 10.xxxx/... part",
+                "url has spaces in it",
+            ]
+        );
+        let e = entry("@misc{b, year={2001}, pages={12--34}, doi={10.1000/xyz}, url={https://x.org/a}}");
+        assert!(bad_values(&e).is_empty());
+        let e = entry("@misc{c, pages={e1-e9}}");
+        assert!(bad_values(&e).is_empty(), "article numbers like e1 aren't digit ranges");
+    }
+
+    #[test]
+    fn capitals_in_titles() {
+        let e = entry(r"@misc{a, title={Sequencing DNA on GPUs with {CRISPR} and $O(N)$ in \LaTeX}}");
+        assert_eq!(
+            messages(unprotected_caps(&e)),
+            ["title has capitals most styles will lower-case; write {DNA}, {GPUs}"]
+        );
+        let e = entry(r"@misc{b, title={A Plain Title With Initial Capitals}}");
+        assert!(unprotected_caps(&e).is_empty());
+    }
+}
