@@ -210,7 +210,8 @@ impl Parser<'_> {
                 _ => {}
             }
             self.skip_space();
-            if self.peek() == Some(close) {
+            // A stray extra comma is harmless; step over it.
+            if self.peek() == Some(close) || self.peek() == Some(b',') {
                 continue;
             }
             let name = self.word().to_lowercase();
@@ -270,4 +271,63 @@ fn parse_all(p: &mut Parser, text: &str, out: &mut Bib) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_plain_entry() {
+        let bib = parse("@Article{knuth84,\n  Author = {Donald E. Knuth},\n  title = {Literate {P}rogramming},\n  year = 1984,\n}").unwrap();
+        let e = &bib.entries[0];
+        assert_eq!((e.kind.as_str(), e.key.as_str()), ("article", "knuth84"));
+        assert_eq!(e.get("author"), Some("Donald E. Knuth"));
+        assert_eq!(e.get("title"), Some("Literate {P}rogramming"));
+        assert_eq!(e.get("year"), Some("1984"));
+    }
+
+    #[test]
+    fn quotes_can_hold_braced_quotes() {
+        let bib = parse(r#"@misc{a, title = "The {"}best{"} paper"}"#).unwrap();
+        assert_eq!(bib.entries[0].get("title"), Some(r#"The {"}best{"} paper"#));
+    }
+
+    #[test]
+    fn strings_months_and_joins() {
+        let bib = parse(
+            "@string{acm = \"ACM Press\"}\n@book{b, publisher = acm # { New York}, month = mar}",
+        )
+        .unwrap();
+        let e = &bib.entries[0];
+        assert_eq!(e.get("publisher"), Some("ACM Press New York"));
+        assert_eq!(e.get("month"), Some("March"));
+    }
+
+    #[test]
+    fn comments_preambles_and_parentheses() {
+        let bib = parse(
+            "Notes before.\n@comment{@article{hidden, title={x}}}\n@preamble{\"\\newcommand{\\noop}[1]{}\"}\n@book(p, title = {P})",
+        )
+        .unwrap();
+        assert_eq!(bib.entries.len(), 1);
+        assert_eq!(bib.entries[0].key, "p");
+        assert_eq!(bib.preambles, ["\\newcommand{\\noop}[1]{}"]);
+    }
+
+    #[test]
+    fn trailing_commas_and_empty_fields_lists() {
+        let bib = parse("@misc{a,}\n@misc{b, note={x},,}").unwrap();
+        assert!(bib.entries[0].fields.is_empty());
+        assert_eq!(bib.entries[1].fields.len(), 1);
+    }
+
+    #[test]
+    fn errors_say_where() {
+        let err = parse("@misc{a, title={ok}}\n\n@misc{b, title = undefinedthing}").unwrap_err();
+        assert_eq!(err.line, 3);
+        assert!(err.message.contains("undefinedthing"), "{err}");
+        let err = parse("@misc{a, title={never closed}\n").unwrap_err();
+        assert!(err.message.contains("never closed"), "{err}");
+    }
 }
