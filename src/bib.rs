@@ -32,6 +32,14 @@ const MONTHS: [(&str, &str); 12] = [
     ("dec", "December"),
 ];
 
+/// Everything bibtidy keeps from a .bib file.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Bib {
+    /// @preamble contents, usually LaTeX macro definitions the entries use.
+    pub preambles: Vec<String>,
+    pub entries: Vec<Entry>,
+}
+
 struct Parser<'a> {
     src: &'a [u8],
     pos: usize,
@@ -196,21 +204,39 @@ impl Parser<'_> {
 }
 
 /// Reads every entry in a .bib file. Text outside entries is ignored, the way
-/// BibTeX itself ignores it.
-pub fn parse(text: &str) -> Result<Vec<Entry>, String> {
+/// BibTeX itself ignores it, and so is anything in @comment.
+pub fn parse(text: &str) -> Result<Bib, String> {
     let mut p = Parser {
         src: text.as_bytes(),
         pos: 0,
         macros: Vec::new(),
     };
-    let mut out = Vec::new();
+    let mut out = Bib::default();
     while let Some(at) = text[p.pos..].find('@') {
         p.pos += at + 1;
         let kind = p.word().to_lowercase();
-        if kind == "string" {
-            p.string_def()?;
-        } else {
-            out.push(p.entry(kind)?);
+        match kind.as_str() {
+            "string" => p.string_def()?,
+            "comment" => {
+                // @comment{...} hides a whole block; a bare @comment only
+                // the rest of its line.
+                p.skip_space();
+                if p.peek() == Some(b'{') {
+                    p.braced()?;
+                } else {
+                    while p.peek().is_some_and(|c| c != b'\n') {
+                        p.pos += 1;
+                    }
+                }
+            }
+            "preamble" => {
+                p.skip_space();
+                let close = if p.peek() == Some(b'(') { b')' } else { b'}' };
+                p.pos += 1;
+                out.preambles.push(p.value()?);
+                p.expect(close)?;
+            }
+            _ => out.entries.push(p.entry(kind)?),
         }
     }
     Ok(out)
