@@ -18,8 +18,22 @@ fn doi(e: &Entry) -> Option<String> {
     (!d.is_empty()).then_some(d)
 }
 
-/// Pairs with the same DOI, or the same title and year once case, accents,
-/// braces and punctuation are ignored.
+/// Share of distinct words the two titles have in common (Jaccard index).
+fn overlap(a: &str, b: &str) -> f64 {
+    let a: std::collections::BTreeSet<&str> = a.split(' ').filter(|w| !w.is_empty()).collect();
+    let b: std::collections::BTreeSet<&str> = b.split(' ').filter(|w| !w.is_empty()).collect();
+    let union = a.union(&b).count();
+    if union == 0 { 0.0 } else { a.intersection(&b).count() as f64 / union as f64 }
+}
+
+/// Titles this close, with the same year, count as the same work: one
+/// extra or changed word in a ten-word title still matches.
+const NEAR: f64 = 0.8;
+/// Short titles can be close by chance ("Introduction", "A Survey").
+const MIN_WORDS: usize = 5;
+
+/// Pairs with the same DOI, or the same (or nearly the same) title and year
+/// once case, accents, braces and punctuation are ignored.
 pub fn find(entries: &[Entry]) -> Vec<Pair> {
     let dois: Vec<Option<String>> = entries.iter().map(doi).collect();
     let titles: Vec<String> = entries.iter().map(|e| fold(e.get("title").unwrap_or(""))).collect();
@@ -31,6 +45,12 @@ pub fn find(entries: &[Entry]) -> Vec<Pair> {
                 "same DOI"
             } else if !titles[i].is_empty() && titles[i] == titles[j] && years[i] == years[j] {
                 "same title and year"
+            } else if years[i] == years[j]
+                && titles[i].split(' ').count() >= MIN_WORDS
+                && titles[j].split(' ').count() >= MIN_WORDS
+                && overlap(&titles[i], &titles[j]) >= NEAR
+            {
+                "nearly the same title, same year"
             } else {
                 continue;
             };
