@@ -173,14 +173,21 @@ impl Parser<'_> {
     }
 
     fn entry(&mut self, kind: String) -> Result<Entry, String> {
-        self.expect(b'{')?;
+        self.skip_space();
+        // @article(key, ...) is old but still valid.
+        let close = match self.peek() {
+            Some(b'{') => b'}',
+            Some(b'(') => b')',
+            _ => return Err(format!("expected '{{' after @{kind}")),
+        };
+        self.pos += 1;
         let key = self.word();
         let mut fields = Vec::new();
         loop {
             self.skip_space();
             match self.peek() {
                 Some(b',') => self.pos += 1,
-                Some(b'}') => {
+                Some(c) if c == close => {
                     self.pos += 1;
                     break;
                 }
@@ -188,7 +195,7 @@ impl Parser<'_> {
                 _ => {}
             }
             self.skip_space();
-            if self.peek() == Some(b'}') {
+            if self.peek() == Some(close) {
                 continue;
             }
             let name = self.word().to_lowercase();
