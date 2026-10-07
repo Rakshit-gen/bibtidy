@@ -16,7 +16,11 @@ pub fn entry(e: &Entry) -> String {
 
 /// The whole file, preambles first, a blank line between entries.
 pub fn bib(b: &Bib) -> String {
-    let mut parts: Vec<String> = b.preambles.iter().map(|p| format!("@preamble{{{{{p}}}}}\n")).collect();
+    let mut parts: Vec<String> = b
+        .preambles
+        .iter()
+        .map(|p| format!("@preamble{{{{{p}}}}}\n"))
+        .collect();
     parts.extend(b.entries.iter().map(entry));
     parts.join("\n")
 }
@@ -53,7 +57,10 @@ mod tests {
     fn preamble_survives() {
         let first = parse("@preamble{\"\\providecommand{\\x}{}\"}\n@misc{a, note={n}}").unwrap();
         let out = bib(&first);
-        assert!(out.starts_with("@preamble{{\\providecommand{\\x}{}}}\n"), "{out}");
+        assert!(
+            out.starts_with("@preamble{{\\providecommand{\\x}{}}}\n"),
+            "{out}"
+        );
         assert_eq!(parse(&out).unwrap(), first);
     }
 }

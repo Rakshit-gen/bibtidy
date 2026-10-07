@@ -103,17 +103,35 @@ pub fn parse_name(s: &str) -> Name {
         [whole] => {
             let w = words(whole);
             // First names run up to the first von word, or to the last word.
-            let first_end = w.iter().position(|x| is_von(x)).unwrap_or(w.len().saturating_sub(1));
+            let first_end = w
+                .iter()
+                .position(|x| is_von(x))
+                .unwrap_or(w.len().saturating_sub(1));
             let (von, last) = split_von_last(&w[first_end..]);
-            Name { first: w[..first_end].join(" "), von, last, jr: String::new() }
+            Name {
+                first: w[..first_end].join(" "),
+                von,
+                last,
+                jr: String::new(),
+            }
         }
         [last_part, first] => {
             let (von, last) = von_last_from(last_part);
-            Name { first: first.trim().into(), von, last, jr: String::new() }
+            Name {
+                first: first.trim().into(),
+                von,
+                last,
+                jr: String::new(),
+            }
         }
         [last_part, jr, first, ..] => {
             let (von, last) = von_last_from(last_part);
-            Name { first: first.trim().into(), von, last, jr: jr.trim().into() }
+            Name {
+                first: first.trim().into(),
+                von,
+                last,
+                jr: jr.trim().into(),
+            }
         }
         [] => Name::default(),
     }
@@ -122,7 +140,11 @@ pub fn parse_name(s: &str) -> Name {
 fn von_last_from(s: &str) -> (String, String) {
     let w = words(s);
     // In "von Last, First" every leading lower-case word is von.
-    let von_end = w.iter().take(w.len().saturating_sub(1)).take_while(|x| is_von(x)).count();
+    let von_end = w
+        .iter()
+        .take(w.len().saturating_sub(1))
+        .take_while(|x| is_von(x))
+        .count();
     (w[..von_end].join(" "), w[von_end..].join(" "))
 }
 
@@ -166,23 +188,41 @@ mod tests {
         let n = parse_name("Ludwig van Beethoven");
         assert_eq!((n.von.as_str(), n.last.as_str()), ("van", "Beethoven"));
         let n = parse_name("Jean de la Fontaine");
-        assert_eq!((n.first.as_str(), n.von.as_str(), n.last.as_str()), ("Jean", "de la", "Fontaine"));
+        assert_eq!(
+            (n.first.as_str(), n.von.as_str(), n.last.as_str()),
+            ("Jean", "de la", "Fontaine")
+        );
         let n = parse_name("van der Waals, Johannes");
         assert_eq!((n.von.as_str(), n.last.as_str()), ("van der", "Waals"));
         let n = parse_name("King, Jr, Martin Luther");
-        assert_eq!((n.last.as_str(), n.jr.as_str(), n.first.as_str()), ("King", "Jr", "Martin Luther"));
+        assert_eq!(
+            (n.last.as_str(), n.jr.as_str(), n.first.as_str()),
+            ("King", "Jr", "Martin Luther")
+        );
     }
 
     #[test]
     fn braces_keep_names_whole() {
-        assert_eq!(last_names("{Barnes and Noble} and Smith, J."), ["{Barnes and Noble}", "Smith"]);
-        assert_eq!(last_names("{World Health Organization}"), ["{World Health Organization}"]);
+        assert_eq!(
+            last_names("{Barnes and Noble} and Smith, J."),
+            ["{Barnes and Noble}", "Smith"]
+        );
+        assert_eq!(
+            last_names("{World Health Organization}"),
+            ["{World Health Organization}"]
+        );
     }
 
     #[test]
     fn splitting_lists() {
-        assert_eq!(last_names("A. Turing AND Alonzo Church and others"), ["Turing", "Church"]);
-        assert_eq!(last_names("Sandy Andrews and Ann Anderson"), ["Andrews", "Anderson"]);
+        assert_eq!(
+            last_names("A. Turing AND Alonzo Church and others"),
+            ["Turing", "Church"]
+        );
+        assert_eq!(
+            last_names("Sandy Andrews and Ann Anderson"),
+            ["Andrews", "Anderson"]
+        );
         assert_eq!(last_names("Plato"), ["Plato"]);
     }
 }

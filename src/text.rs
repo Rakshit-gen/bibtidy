@@ -31,7 +31,10 @@ const LETTERS: &[(&str, &str)] = &[
 /// the escapes \& \% \$ \_ \# and ~ become what they print as, and line
 /// breaks and runs of spaces become single spaces.
 pub fn plain(s: &str) -> String {
-    latex_to_text(s).split_whitespace().collect::<Vec<_>>().join(" ")
+    latex_to_text(s)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn latex_to_text(s: &str) -> String {
@@ -66,7 +69,10 @@ fn command(chars: &[char], mut i: usize, out: &mut String) -> usize {
     let accent_cmds = ['"', '\'', '`', '^', '~', 'c', 'v', 'H', 'r', '=', '.', 'u'];
     // A letter command name runs on; a symbol one is one character.
     let name: String = if c.is_ascii_alphabetic() {
-        chars[i..].iter().take_while(|c| c.is_ascii_alphabetic()).collect()
+        chars[i..]
+            .iter()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect()
     } else {
         c.to_string()
     };
@@ -88,7 +94,10 @@ fn command(chars: &[char], mut i: usize, out: &mut String) -> usize {
         }
         if let Some(b) = base {
             i += 1;
-            let accented = ACCENTS.iter().find(|&&(a, l, _)| a == c && l == b).map(|&(_, _, x)| x);
+            let accented = ACCENTS
+                .iter()
+                .find(|&&(a, l, _)| a == c && l == b)
+                .map(|&(_, _, x)| x);
             out.push(accented.unwrap_or(b));
         }
         if braced && chars.get(i) == Some(&'}') {
@@ -114,7 +123,11 @@ fn command(chars: &[char], mut i: usize, out: &mut String) -> usize {
 pub fn fold(s: &str) -> String {
     let mut out = String::new();
     for c in plain(s).chars() {
-        let base = ACCENTS.iter().find(|&&(_, _, x)| x == c).map(|&(_, b, _)| b).unwrap_or(c);
+        let base = ACCENTS
+            .iter()
+            .find(|&&(_, _, x)| x == c)
+            .map(|&(_, b, _)| b)
+            .unwrap_or(c);
         let base = match base {
             'ß' => "ss".to_string(),
             'ø' | 'Ø' => "o".into(),
@@ -142,22 +155,40 @@ mod tests {
 
     #[test]
     fn accents_in_every_spelling() {
-        assert_eq!(plain(r#"G\"{o}del, G\"odel, {\"o}, \'{e}cole, \c{c}a"#), "Gödel, Gödel, ö, école, ça");
-        assert_eq!(plain(r#"Erd\H{o}s and \v{S}koda, Pe\~na, na\"{\i}ve"#), "Erdős and Škoda, Peña, naïve");
+        assert_eq!(
+            plain(r#"G\"{o}del, G\"odel, {\"o}, \'{e}cole, \c{c}a"#),
+            "Gödel, Gödel, ö, école, ça"
+        );
+        assert_eq!(
+            plain(r#"Erd\H{o}s and \v{S}koda, Pe\~na, na\"{\i}ve"#),
+            "Erdős and Škoda, Peña, naïve"
+        );
     }
 
     #[test]
     fn letters_escapes_and_commands() {
-        assert_eq!(plain(r#"Stra\ss e, \o{}re, \AA{}ngstr\"om"#), "Straße, øre, Ångström");
-        assert_eq!(plain(r"R\&D at 50\% in \emph{one}~go"), "R&D at 50% in one go");
+        assert_eq!(
+            plain(r#"Stra\ss e, \o{}re, \AA{}ngstr\"om"#),
+            "Straße, øre, Ångström"
+        );
+        assert_eq!(
+            plain(r"R\&D at 50\% in \emph{one}~go"),
+            "R&D at 50% in one go"
+        );
         assert_eq!(plain("{DNA} {S}tructure"), "DNA Structure");
         assert_eq!(plain("Two\n      lines"), "Two lines");
     }
 
     #[test]
     fn folding_makes_spellings_match() {
-        assert_eq!(fold(r#"G\"{o}del's {T}heorem: A~Proof"#), "godel s theorem a proof");
-        assert_eq!(fold("Gödel’s theorem -- a proof"), "godel s theorem a proof");
+        assert_eq!(
+            fold(r#"G\"{o}del's {T}heorem: A~Proof"#),
+            "godel s theorem a proof"
+        );
+        assert_eq!(
+            fold("Gödel’s theorem -- a proof"),
+            "godel s theorem a proof"
+        );
         assert_eq!(fold(r"Stra\ss e"), "strasse");
     }
 }

@@ -67,7 +67,13 @@ enum Sort {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::Fmt { file, in_place, keep_order, sort, fix } => {
+        Command::Fmt {
+            file,
+            in_place,
+            keep_order,
+            sort,
+            fix,
+        } => {
             let mut bib = load(&file)?;
             if !keep_order {
                 bib.entries.iter_mut().for_each(tidy::order_fields);
@@ -83,7 +89,8 @@ fn main() -> Result<()> {
             }
             let out = write::bib(&bib);
             if in_place {
-                std::fs::write(&file, out).with_context(|| format!("couldn't write {}", file.display()))?;
+                std::fs::write(&file, out)
+                    .with_context(|| format!("couldn't write {}", file.display()))?;
             } else {
                 print!("{out}");
             }
@@ -102,16 +109,21 @@ fn main() -> Result<()> {
             if changed == 0 {
                 eprintln!("Every key already follows the pattern.");
             } else if write {
-                std::fs::write(&file, write::bib(&bib)).with_context(|| format!("couldn't write {}", file.display()))?;
+                std::fs::write(&file, write::bib(&bib))
+                    .with_context(|| format!("couldn't write {}", file.display()))?;
                 eprintln!("Renamed {changed} keys in {}.", file.display());
                 for path in &tex {
-                    let text = std::fs::read_to_string(path).with_context(|| format!("couldn't read {}", path.display()))?;
+                    let text = std::fs::read_to_string(path)
+                        .with_context(|| format!("couldn't read {}", path.display()))?;
                     let (text, n) = keys::rename_citations(&text, &renames);
-                    std::fs::write(path, text).with_context(|| format!("couldn't write {}", path.display()))?;
+                    std::fs::write(path, text)
+                        .with_context(|| format!("couldn't write {}", path.display()))?;
                     eprintln!("Updated {n} citations in {}.", path.display());
                 }
                 if tex.is_empty() {
-                    eprintln!("Citations in your .tex files still use the old keys; pass them with --tex to update them.");
+                    eprintln!(
+                        "Citations in your .tex files still use the old keys; pass them with --tex to update them."
+                    );
                 }
             }
         }
@@ -125,7 +137,11 @@ fn main() -> Result<()> {
                 eprintln!("{} entries, no problems found.", bib.entries.len());
             } else {
                 let n = problems.len();
-                eprintln!("{n} problem{} in {} entries.", if n == 1 { "" } else { "s" }, bib.entries.len());
+                eprintln!(
+                    "{n} problem{} in {} entries.",
+                    if n == 1 { "" } else { "s" },
+                    bib.entries.len()
+                );
                 std::process::exit(1);
             }
         }
@@ -135,7 +151,10 @@ fn main() -> Result<()> {
             for p in &pairs {
                 let (a, b) = (&bib.entries[p.first], &bib.entries[p.second]);
                 println!("{} and {}: {}", a.key, b.key, p.reason);
-                println!("    {}", bibtidy::text::plain(a.get("title").unwrap_or("(no title)")));
+                println!(
+                    "    {}",
+                    bibtidy::text::plain(a.get("title").unwrap_or("(no title)"))
+                );
             }
             if pairs.is_empty() {
                 eprintln!("No duplicates among {} entries.", bib.entries.len());
@@ -148,6 +167,7 @@ fn main() -> Result<()> {
 }
 
 fn load(path: &Path) -> Result<Bib> {
-    let text = std::fs::read_to_string(path).with_context(|| format!("couldn't read {}", path.display()))?;
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("couldn't read {}", path.display()))?;
     parse(&text).with_context(|| format!("{} isn't valid BibTeX", path.display()))
 }

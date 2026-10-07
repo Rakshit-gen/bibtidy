@@ -27,7 +27,12 @@ const FIELD_ORDER: [&str; 18] = [
 
 /// Puts the fields in the usual reading order: who, what, where, when.
 pub fn order_fields(e: &mut Entry) {
-    let rank = |name: &str| FIELD_ORDER.iter().position(|&n| n == name).unwrap_or(FIELD_ORDER.len());
+    let rank = |name: &str| {
+        FIELD_ORDER
+            .iter()
+            .position(|&n| n == name)
+            .unwrap_or(FIELD_ORDER.len())
+    };
     // sort_by_key is stable, so unlisted fields stay in file order.
     e.fields.sort_by_key(|(name, _)| rank(name));
 }
@@ -63,7 +68,8 @@ fn en_dash_ranges(pages: &str) -> String {
     let mut out = String::new();
     for (i, &ch) in c.iter().enumerate() {
         out.push(ch);
-        let digits_around = i > 0 && c[i - 1].is_ascii_digit() && c.get(i + 1).is_some_and(|n| n.is_ascii_digit());
+        let digits_around =
+            i > 0 && c[i - 1].is_ascii_digit() && c.get(i + 1).is_some_and(|n| n.is_ascii_digit());
         if ch == '-' && digits_around {
             out.push('-');
         }
@@ -95,7 +101,10 @@ mod tests {
 
     #[test]
     fn orders_known_fields_and_keeps_the_rest_in_place() {
-        let mut e = parse("@article{a, year={1}, doi={d}, title={t}, note={n}, author={x}}").unwrap().entries.remove(0);
+        let mut e = parse("@article{a, year={1}, doi={d}, title={t}, note={n}, author={x}}")
+            .unwrap()
+            .entries
+            .remove(0);
         order_fields(&mut e);
         let names: Vec<_> = e.fields.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, ["author", "title", "year", "doi", "note"]);
@@ -103,7 +112,9 @@ mod tests {
 
     #[test]
     fn sorts_by_key_or_year() {
-        let mut bib = parse("@misc{b, year={2001}}\n@misc{A, year={1999}}\n@misc{c}\n@misc{d, year={1999}}").unwrap();
+        let mut bib =
+            parse("@misc{b, year={2001}}\n@misc{A, year={1999}}\n@misc{c}\n@misc{d, year={1999}}")
+                .unwrap();
         sort_entries(&mut bib.entries, SortBy::Key);
         let keys: Vec<_> = bib.entries.iter().map(|e| e.key.as_str()).collect();
         assert_eq!(keys, ["A", "b", "c", "d"]);

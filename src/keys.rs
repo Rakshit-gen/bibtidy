@@ -4,7 +4,9 @@ use crate::bib::Entry;
 use crate::names::split_authors;
 use crate::text::fold;
 
-const SMALL_WORDS: [&str; 14] = ["a", "an", "the", "on", "of", "in", "for", "and", "to", "with", "at", "by", "from", "is"];
+const SMALL_WORDS: [&str; 14] = [
+    "a", "an", "the", "on", "of", "in", "for", "and", "to", "with", "at", "by", "from", "is",
+];
 
 /// The key this entry would get on its own, like "knuth1984literate". Uses
 /// the editor when there is no author, and leaves out parts that are missing.
@@ -15,9 +17,17 @@ pub fn suggest(e: &Entry) -> String {
         // "van Dyke" is the surname, so the von part stays in.
         .map(|n| fold(&format!("{} {}", n.von, n.last)).replace(' ', ""))
         .unwrap_or_default();
-    let year: String = e.get("year").unwrap_or("").chars().filter(char::is_ascii_digit).collect();
+    let year: String = e
+        .get("year")
+        .unwrap_or("")
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect();
     let title = fold(e.get("title").unwrap_or(""));
-    let word = title.split(' ').find(|w| !w.is_empty() && !SMALL_WORDS.contains(w)).unwrap_or("");
+    let word = title
+        .split(' ')
+        .find(|w| !w.is_empty() && !SMALL_WORDS.contains(w))
+        .unwrap_or("");
     let key = format!("{who}{year}{word}");
     if key.is_empty() { e.key.clone() } else { key }
 }
@@ -72,7 +82,9 @@ pub fn rename_citations(tex: &str, renames: &[(String, String)]) -> (String, usi
     while let Some(at) = rest.find('\\') {
         out.push_str(&rest[..at]);
         rest = &rest[at..];
-        let name_len = rest[1..].find(|c: char| !c.is_ascii_alphabetic()).map_or(rest.len() - 1, |n| n);
+        let name_len = rest[1..]
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(rest.len() - 1);
         let name = &rest[1..1 + name_len];
         if !name.contains("cite") {
             // The backslash and an ASCII name are single bytes each.
@@ -142,13 +154,18 @@ mod tests {
     fn the_usual_pattern() {
         let k = keys(r#"@book{x, author={Donald E. Knuth}, title={The {\TeX}book}, year={1984}}"#);
         assert_eq!(k, ["knuth1984texbook"]);
-        let k = keys(r#"@article{x, author={G\"{o}del, Kurt and Other, A.}, title={On Formally Undecidable Propositions}, year=1931}"#);
+        let k = keys(
+            r#"@article{x, author={G\"{o}del, Kurt and Other, A.}, title={On Formally Undecidable Propositions}, year=1931}"#,
+        );
         assert_eq!(k, ["godel1931formally"]);
     }
 
     #[test]
     fn falls_back_when_parts_are_missing() {
-        assert_eq!(keys("@misc{x, editor={Ann van Dyke}, title={Notes}}"), ["vandykenotes"]);
+        assert_eq!(
+            keys("@misc{x, editor={Ann van Dyke}, title={Notes}}"),
+            ["vandykenotes"]
+        );
         assert_eq!(keys("@misc{keepme, note={nothing to go on}}"), ["keepme"]);
     }
 
@@ -165,7 +182,10 @@ mod tests {
 
     #[test]
     fn renames_citations_in_tex() {
-        let renames = vec![("tb".to_string(), "knuth1984texbook".to_string()), ("x".to_string(), "y".to_string())];
+        let renames = vec![
+            ("tb".to_string(), "knuth1984texbook".to_string()),
+            ("x".to_string(), "y".to_string()),
+        ];
         let tex = r"As in \cite{tb}, see \citep[p.~3]{ x, other} and \textcite*[see][]{tb}. Not \ref{tb} or \emph{x}. Caf\'e \nocite{x}";
         let (out, n) = rename_citations(tex, &renames);
         assert_eq!(

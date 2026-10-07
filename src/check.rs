@@ -6,23 +6,47 @@ use crate::bib::Entry;
 /// either one will do; biblatex's date counts as a year.
 const REQUIRED: &[(&str, &[&str])] = &[
     ("article", &["author", "title", "journal", "year|date"]),
-    ("book", &["author|editor", "title", "publisher", "year|date"]),
+    (
+        "book",
+        &["author|editor", "title", "publisher", "year|date"],
+    ),
     ("booklet", &["title"]),
-    ("inbook", &["author|editor", "title", "chapter|pages", "publisher", "year|date"]),
-    ("incollection", &["author", "title", "booktitle", "publisher", "year|date"]),
-    ("inproceedings", &["author", "title", "booktitle", "year|date"]),
+    (
+        "inbook",
+        &[
+            "author|editor",
+            "title",
+            "chapter|pages",
+            "publisher",
+            "year|date",
+        ],
+    ),
+    (
+        "incollection",
+        &["author", "title", "booktitle", "publisher", "year|date"],
+    ),
+    (
+        "inproceedings",
+        &["author", "title", "booktitle", "year|date"],
+    ),
     ("conference", &["author", "title", "booktitle", "year|date"]),
     ("manual", &["title"]),
     ("mastersthesis", &["author", "title", "school", "year|date"]),
     ("phdthesis", &["author", "title", "school", "year|date"]),
     ("proceedings", &["title", "year|date"]),
-    ("techreport", &["author", "title", "institution", "year|date"]),
+    (
+        "techreport",
+        &["author", "title", "institution", "year|date"],
+    ),
     ("unpublished", &["author", "title", "note"]),
     ("misc", &[]),
     // biblatex types that are common in the wild.
     ("online", &["title", "url|doi"]),
     ("report", &["author", "title", "institution", "year|date"]),
-    ("thesis", &["author", "title", "institution|school", "year|date"]),
+    (
+        "thesis",
+        &["author", "title", "institution|school", "year|date"],
+    ),
     ("software", &["title"]),
     ("dataset", &["title"]),
 ];
@@ -58,7 +82,12 @@ pub fn missing_fields(e: &Entry) -> Vec<Problem> {
 /// Values that are present but look wrong.
 pub fn bad_values(e: &Entry) -> Vec<Problem> {
     let mut out = Vec::new();
-    let mut say = |message: String| out.push(Problem { key: e.key.clone(), message });
+    let mut say = |message: String| {
+        out.push(Problem {
+            key: e.key.clone(),
+            message,
+        })
+    };
     if let Some(year) = e.get("year") {
         let year = year.trim();
         if !(year.len() == 4 && year.chars().all(|c| c.is_ascii_digit())) {
@@ -77,7 +106,9 @@ pub fn bad_values(e: &Entry) -> Vec<Problem> {
     if let Some(doi) = e.get("doi") {
         let doi = doi.trim();
         if doi.contains("doi.org/") {
-            say(format!("doi \"{doi}\" is a link; the field wants just the 10.xxxx/... part"));
+            say(format!(
+                "doi \"{doi}\" is a link; the field wants just the 10.xxxx/... part"
+            ));
         } else if !doi.starts_with("10.") {
             say(format!("doi \"{doi}\" doesn't start with 10."));
         }
@@ -94,7 +125,9 @@ pub fn bad_values(e: &Entry) -> Vec<Problem> {
 /// Most BibTeX styles lower-case titles, so "DNA" prints as "dna" unless it
 /// is written {DNA}.
 pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
-    let Some(title) = e.get("title") else { return Vec::new() };
+    let Some(title) = e.get("title") else {
+        return Vec::new();
+    };
     let mut depth = 0;
     let mut math = false;
     let mut word = String::new();
@@ -134,7 +167,10 @@ pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
     let braced: Vec<String> = found.iter().map(|w| format!("{{{w}}}")).collect();
     vec![Problem {
         key: e.key.clone(),
-        message: format!("title has capitals most styles will lower-case; write {}", braced.join(", ")),
+        message: format!(
+            "title has capitals most styles will lower-case; write {}",
+            braced.join(", ")
+        ),
     }]
 }
 
@@ -143,7 +179,9 @@ pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
 pub fn duplicate_keys(entries: &[Entry]) -> Vec<Problem> {
     let mut out = Vec::new();
     for (i, e) in entries.iter().enumerate() {
-        let earlier = entries[..i].iter().any(|o| o.key.eq_ignore_ascii_case(&e.key));
+        let earlier = entries[..i]
+            .iter()
+            .any(|o| o.key.eq_ignore_ascii_case(&e.key));
         if earlier {
             out.push(Problem {
                 key: e.key.clone(),
@@ -185,7 +223,10 @@ mod tests {
     #[test]
     fn missing_fields_and_alternatives() {
         let e = entry("@article{a, author={X}, title={T}}");
-        assert_eq!(messages(missing_fields(&e)), ["missing journal", "missing year or date"]);
+        assert_eq!(
+            messages(missing_fields(&e)),
+            ["missing journal", "missing year or date"]
+        );
         let e = entry("@article{a2, author={X}, title={T}, journal={J}, date={2021-03}}");
         assert!(missing_fields(&e).is_empty());
         let e = entry("@online{o, title={T}, url={https://example.org}}");
@@ -197,12 +238,17 @@ mod tests {
         let e = entry("@article{d, author={ }, title={T}, journal={J}, year=1}");
         assert_eq!(messages(missing_fields(&e)), ["missing author"]);
         let e = entry("@webpage{w, title={T}}");
-        assert_eq!(messages(missing_fields(&e)), ["@webpage isn't a standard entry type"]);
+        assert_eq!(
+            messages(missing_fields(&e)),
+            ["@webpage isn't a standard entry type"]
+        );
     }
 
     #[test]
     fn values_that_look_wrong() {
-        let e = entry("@misc{a, year={99}, pages={12-34}, doi={https://doi.org/10.1000/xyz}, url={http://a b}}");
+        let e = entry(
+            "@misc{a, year={99}, pages={12-34}, doi={https://doi.org/10.1000/xyz}, url={http://a b}}",
+        );
         assert_eq!(
             messages(bad_values(&e)),
             [
@@ -212,15 +258,21 @@ mod tests {
                 "url has spaces in it",
             ]
         );
-        let e = entry("@misc{b, year={2001}, pages={12--34}, doi={10.1000/xyz}, url={https://x.org/a}}");
+        let e = entry(
+            "@misc{b, year={2001}, pages={12--34}, doi={10.1000/xyz}, url={https://x.org/a}}",
+        );
         assert!(bad_values(&e).is_empty());
         let e = entry("@misc{c, pages={e1-e9}}");
-        assert!(bad_values(&e).is_empty(), "article numbers like e1 aren't digit ranges");
+        assert!(
+            bad_values(&e).is_empty(),
+            "article numbers like e1 aren't digit ranges"
+        );
     }
 
     #[test]
     fn capitals_in_titles() {
-        let e = entry(r"@misc{a, title={Sequencing DNA on GPUs with {CRISPR} and $O(N)$ in \LaTeX}}");
+        let e =
+            entry(r"@misc{a, title={Sequencing DNA on GPUs with {CRISPR} and $O(N)$ in \LaTeX}}");
         assert_eq!(
             messages(unprotected_caps(&e)),
             ["title has capitals most styles will lower-case; write {DNA}, {GPUs}"]
@@ -231,7 +283,8 @@ mod tests {
 
     #[test]
     fn duplicate_keys_ignore_case() {
-        let bib = parse("@misc{Smith, note={a}}\n@misc{jones, note={b}}\n@misc{smith, note={c}}").unwrap();
+        let bib = parse("@misc{Smith, note={a}}\n@misc{jones, note={b}}\n@misc{smith, note={c}}")
+            .unwrap();
         let p = duplicate_keys(&bib.entries);
         assert_eq!(p.len(), 1);
         assert_eq!(p[0].key, "smith");

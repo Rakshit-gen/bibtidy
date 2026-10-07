@@ -13,7 +13,10 @@ pub struct Entry {
 
 impl Entry {
     pub fn get(&self, name: &str) -> Option<&str> {
-        self.fields.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+        self.fields
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
     }
 }
 
@@ -87,7 +90,10 @@ impl Parser<'_> {
     fn word(&mut self) -> String {
         self.skip_space();
         let start = self.pos;
-        while self.peek().is_some_and(|c| !c.is_ascii_whitespace() && !b"{}(),=#\"@".contains(&c)) {
+        while self
+            .peek()
+            .is_some_and(|c| !c.is_ascii_whitespace() && !b"{}(),=#\"@".contains(&c))
+        {
             self.pos += 1;
         }
         String::from_utf8_lossy(&self.src[start..self.pos]).into_owned()
@@ -105,7 +111,9 @@ impl Parser<'_> {
                 b'}' => {
                     depth -= 1;
                     if depth == 0 {
-                        return Ok(String::from_utf8_lossy(&self.src[start..self.pos - 1]).into_owned());
+                        return Ok(
+                            String::from_utf8_lossy(&self.src[start..self.pos - 1]).into_owned()
+                        );
                     }
                 }
                 _ => {}
@@ -147,9 +155,15 @@ impl Parser<'_> {
             _ => {
                 let name = self.word().to_lowercase();
                 if name.is_empty() {
-                    return Err("expected a value in braces, quotes, a number or an @string name".into());
+                    return Err(
+                        "expected a value in braces, quotes, a number or an @string name".into(),
+                    );
                 }
-                let defined = self.macros.iter().find(|(n, _)| *n == name).map(|(_, v)| v.as_str());
+                let defined = self
+                    .macros
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, v)| v.as_str());
                 let month = MONTHS.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
                 defined
                     .or(month)
@@ -239,7 +253,10 @@ pub fn parse(text: &str) -> Result<Bib, ParseError> {
     };
     let mut out = Bib::default();
     parse_all(&mut p, text, &mut out).map_err(|message| ParseError {
-        line: 1 + text.as_bytes()[..p.pos.min(text.len())].iter().filter(|&&c| c == b'\n').count(),
+        line: 1 + text.as_bytes()[..p.pos.min(text.len())]
+            .iter()
+            .filter(|&&c| c == b'\n')
+            .count(),
         message,
     })?;
     Ok(out)
@@ -332,7 +349,11 @@ mod tests {
         assert!(err.message.contains("undefinedthing"), "{err}");
         let err = parse("@misc{a, title={never closed}\n").unwrap_err();
         assert!(err.message.contains("never closed"), "{err}");
-        let err = parse("@misc{a, title={ok}}\n@misc{b,\n  title = {open\n\nmore text\n").unwrap_err();
-        assert_eq!((err.line, err.message.as_str()), (3, "this brace is never closed"));
+        let err =
+            parse("@misc{a, title={ok}}\n@misc{b,\n  title = {open\n\nmore text\n").unwrap_err();
+        assert_eq!(
+            (err.line, err.message.as_str()),
+            (3, "this brace is never closed")
+        );
     }
 }
