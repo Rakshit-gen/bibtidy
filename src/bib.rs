@@ -111,7 +111,9 @@ impl Parser<'_> {
                 _ => {}
             }
         }
-        Err("a brace is never closed".into())
+        // Point the error at the opening brace, not the end of the file.
+        self.pos = start - 1;
+        Err("this brace is never closed".into())
     }
 
     /// The inside of a "..." value. A quote inside braces doesn't end it,
@@ -131,7 +133,8 @@ impl Parser<'_> {
                 _ => {}
             }
         }
-        Err("a quote is never closed".into())
+        self.pos = start - 1;
+        Err("this quote is never closed".into())
     }
 
     /// One piece of a value: braces, quotes, a number or an @string name.
@@ -329,5 +332,7 @@ mod tests {
         assert!(err.message.contains("undefinedthing"), "{err}");
         let err = parse("@misc{a, title={never closed}\n").unwrap_err();
         assert!(err.message.contains("never closed"), "{err}");
+        let err = parse("@misc{a, title={ok}}\n@misc{b,\n  title = {open\n\nmore text\n").unwrap_err();
+        assert_eq!((err.line, err.message.as_str()), (3, "this brace is never closed"));
     }
 }
