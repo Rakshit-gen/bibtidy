@@ -24,6 +24,7 @@ const ACCENTS: &[(char, char, char)] = &[
 const LETTERS: &[(&str, &str)] = &[
     ("ss", "ß"), ("o", "ø"), ("O", "Ø"), ("aa", "å"), ("AA", "Å"), ("ae", "æ"), ("AE", "Æ"),
     ("oe", "œ"), ("OE", "Œ"), ("l", "ł"), ("L", "Ł"), ("i", "ı"),
+    ("TeX", "TeX"), ("LaTeX", "LaTeX"), ("BibTeX", "BibTeX"),
 ];
 
 /// Readable text from a BibTeX value: accents become real letters, braces go,
