@@ -32,6 +32,21 @@ const MONTHS: [(&str, &str); 12] = [
     ("dec", "December"),
 ];
 
+/// What went wrong and on which line, counting from 1.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParseError {
+    pub line: usize,
+    pub message: String,
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "line {}: {}", self.line, self.message)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 /// Everything bibtidy keeps from a .bib file.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Bib {
@@ -212,13 +227,21 @@ impl Parser<'_> {
 
 /// Reads every entry in a .bib file. Text outside entries is ignored, the way
 /// BibTeX itself ignores it, and so is anything in @comment.
-pub fn parse(text: &str) -> Result<Bib, String> {
+pub fn parse(text: &str) -> Result<Bib, ParseError> {
     let mut p = Parser {
         src: text.as_bytes(),
         pos: 0,
         macros: Vec::new(),
     };
     let mut out = Bib::default();
+    parse_all(&mut p, text, &mut out).map_err(|message| ParseError {
+        line: 1 + text.as_bytes()[..p.pos.min(text.len())].iter().filter(|&&c| c == b'\n').count(),
+        message,
+    })?;
+    Ok(out)
+}
+
+fn parse_all(p: &mut Parser, text: &str, out: &mut Bib) -> Result<(), String> {
     while let Some(at) = text[p.pos..].find('@') {
         p.pos += at + 1;
         let kind = p.word().to_lowercase();
@@ -246,5 +269,5 @@ pub fn parse(text: &str) -> Result<Bib, String> {
             _ => out.entries.push(p.entry(kind)?),
         }
     }
-    Ok(out)
+    Ok(())
 }
