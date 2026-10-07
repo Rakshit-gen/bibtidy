@@ -59,3 +59,44 @@ pub fn find(entries: &[Entry]) -> Vec<Pair> {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bib::parse;
+
+    fn pairs(src: &str) -> Vec<(usize, usize, &'static str)> {
+        find(&parse(src).unwrap().entries).into_iter().map(|p| (p.first, p.second, p.reason)).collect()
+    }
+
+    #[test]
+    fn same_doi_even_as_a_link() {
+        let p = pairs("@misc{a, doi={10.1145/362384.362685}}\n@misc{b, doi={https://doi.org/10.1145/362384.362685}}");
+        assert_eq!(p, [(0, 1, "same DOI")]);
+    }
+
+    #[test]
+    fn same_title_however_it_is_typed() {
+        let p = pairs(
+            r#"@article{a, title={{G}\"{o}del's Proof}, year=1958}
+@book{b, title={GÖDEL'S PROOF.}, year={1958}}
+@book{c, title={Gödel's Proof}, year={2001}}"#,
+        );
+        assert_eq!(p, [(0, 1, "same title and year")]);
+    }
+
+    #[test]
+    fn nearly_the_same_title() {
+        let p = pairs(
+            "@misc{a, title={Attention Is All You Need for Translation}, year=2017}\n@misc{b, title={Attention Is All You Need for Machine Translation}, year=2017}",
+        );
+        assert_eq!(p, [(0, 1, "nearly the same title, same year")]);
+    }
+
+    #[test]
+    fn short_or_different_titles_dont_match() {
+        assert!(pairs("@misc{a, title={A Survey}, year=2020}\n@misc{b, title={A New Survey}, year=2020}").is_empty());
+        assert!(pairs("@misc{a, title={Deep Learning for Graphs and Text}, year=2020}\n@misc{b, title={Shallow Models for Images and Sound}, year=2020}").is_empty());
+        assert!(pairs("@misc{a}\n@misc{b}").is_empty());
+    }
+}
