@@ -29,6 +29,9 @@ enum Command {
         /// Sort the entries; by default they stay in file order
         #[arg(long, value_enum)]
         sort: Option<Sort>,
+        /// Also fix page ranges, DOI links and stray line breaks in values
+        #[arg(long)]
+        fix: bool,
     },
     /// Rename citation keys to lastname, year, first title word
     Keys {
@@ -64,10 +67,14 @@ enum Sort {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::Fmt { file, in_place, keep_order, sort } => {
+        Command::Fmt { file, in_place, keep_order, sort, fix } => {
             let mut bib = load(&file)?;
             if !keep_order {
                 bib.entries.iter_mut().for_each(tidy::order_fields);
+            }
+            if fix {
+                let n: usize = bib.entries.iter_mut().map(tidy::fix).sum();
+                eprintln!("Fixed {n} fields.");
             }
             match sort {
                 Some(Sort::Key) => tidy::sort_entries(&mut bib.entries, SortBy::Key),

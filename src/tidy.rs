@@ -32,6 +32,45 @@ pub fn order_fields(e: &mut Entry) {
     e.fields.sort_by_key(|(name, _)| rank(name));
 }
 
+/// Fixes that can't change what gets printed except for the better:
+/// runs of spaces and line breaks become one space (BibTeX treats them the
+/// same), page ranges get --, and a DOI pasted as a link loses the link part.
+/// Returns how many fields changed.
+pub fn fix(e: &mut Entry) -> usize {
+    let mut changed = 0;
+    for (name, value) in &mut e.fields {
+        let mut new = value.split_whitespace().collect::<Vec<_>>().join(" ");
+        if name == "pages" {
+            new = en_dash_ranges(&new);
+        }
+        if name == "doi" {
+            if let Some((_, rest)) = new.rsplit_once("doi.org/") {
+                new = rest.to_string();
+            }
+        }
+        if new != *value {
+            *value = new;
+            changed += 1;
+        }
+    }
+    changed
+}
+
+/// 12-34 and 12 - 34 become 12--34; e1-e9 is left alone.
+fn en_dash_ranges(pages: &str) -> String {
+    let compact = pages.replace(" - ", "-").replace(" -- ", "--");
+    let c: Vec<char> = compact.chars().collect();
+    let mut out = String::new();
+    for (i, &ch) in c.iter().enumerate() {
+        out.push(ch);
+        let digits_around = i > 0 && c[i - 1].is_ascii_digit() && c.get(i + 1).is_some_and(|n| n.is_ascii_digit());
+        if ch == '-' && digits_around {
+            out.push('-');
+        }
+    }
+    out
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SortBy {
     Key,
@@ -71,5 +110,19 @@ mod tests {
         sort_entries(&mut bib.entries, SortBy::Year);
         let keys: Vec<_> = bib.entries.iter().map(|e| e.key.as_str()).collect();
         assert_eq!(keys, ["A", "d", "b", "c"]);
+    }
+
+    #[test]
+    fn safe_fixes() {
+        let mut e = parse("@misc{a, title={Two\n    lines}, pages={12 - 34}, doi={https://doi.org/10.1/x}, note={ok}}")
+            .unwrap()
+            .entries
+            .remove(0);
+        assert_eq!(fix(&mut e), 3);
+        assert_eq!(e.get("title"), Some("Two lines"));
+        assert_eq!(e.get("pages"), Some("12--34"));
+        assert_eq!(e.get("doi"), Some("10.1/x"));
+        assert_eq!(fix(&mut e), 0);
+        assert_eq!(en_dash_ranges("e1-e9, 3-5"), "e1-e9, 3--5");
     }
 }
