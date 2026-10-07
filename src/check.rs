@@ -3,22 +3,28 @@
 use crate::bib::Entry;
 
 /// Fields BibTeX's standard styles need for each entry type. "a|b" means
-/// either one will do.
+/// either one will do; biblatex's date counts as a year.
 const REQUIRED: &[(&str, &[&str])] = &[
-    ("article", &["author", "title", "journal", "year"]),
-    ("book", &["author|editor", "title", "publisher", "year"]),
+    ("article", &["author", "title", "journal", "year|date"]),
+    ("book", &["author|editor", "title", "publisher", "year|date"]),
     ("booklet", &["title"]),
-    ("inbook", &["author|editor", "title", "chapter|pages", "publisher", "year"]),
-    ("incollection", &["author", "title", "booktitle", "publisher", "year"]),
-    ("inproceedings", &["author", "title", "booktitle", "year"]),
-    ("conference", &["author", "title", "booktitle", "year"]),
+    ("inbook", &["author|editor", "title", "chapter|pages", "publisher", "year|date"]),
+    ("incollection", &["author", "title", "booktitle", "publisher", "year|date"]),
+    ("inproceedings", &["author", "title", "booktitle", "year|date"]),
+    ("conference", &["author", "title", "booktitle", "year|date"]),
     ("manual", &["title"]),
-    ("mastersthesis", &["author", "title", "school", "year"]),
-    ("phdthesis", &["author", "title", "school", "year"]),
-    ("proceedings", &["title", "year"]),
-    ("techreport", &["author", "title", "institution", "year"]),
+    ("mastersthesis", &["author", "title", "school", "year|date"]),
+    ("phdthesis", &["author", "title", "school", "year|date"]),
+    ("proceedings", &["title", "year|date"]),
+    ("techreport", &["author", "title", "institution", "year|date"]),
     ("unpublished", &["author", "title", "note"]),
     ("misc", &[]),
+    // biblatex types that are common in the wild.
+    ("online", &["title", "url|doi"]),
+    ("report", &["author", "title", "institution", "year|date"]),
+    ("thesis", &["author", "title", "institution|school", "year|date"]),
+    ("software", &["title"]),
+    ("dataset", &["title"]),
 ];
 
 #[derive(Clone, Debug, PartialEq)]
@@ -179,7 +185,11 @@ mod tests {
     #[test]
     fn missing_fields_and_alternatives() {
         let e = entry("@article{a, author={X}, title={T}}");
-        assert_eq!(messages(missing_fields(&e)), ["missing journal", "missing year"]);
+        assert_eq!(messages(missing_fields(&e)), ["missing journal", "missing year or date"]);
+        let e = entry("@article{a2, author={X}, title={T}, journal={J}, date={2021-03}}");
+        assert!(missing_fields(&e).is_empty());
+        let e = entry("@online{o, title={T}, url={https://example.org}}");
+        assert!(missing_fields(&e).is_empty());
         let e = entry("@book{b, editor={E}, title={T}, publisher={P}, year=2000}");
         assert!(missing_fields(&e).is_empty());
         let e = entry("@book{c, title={T}, publisher={P}, year=2000}");
