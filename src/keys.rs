@@ -62,6 +62,73 @@ fn suffix(mut n: usize) -> String {
     }
 }
 
+/// Rewrites keys inside \\cite, \\citep, \\textcite, \\nocite and the other
+/// commands with "cite" in their name, keeping [optional] arguments and
+/// spacing. Returns the new text and how many keys changed.
+pub fn rename_citations(tex: &str, renames: &[(String, String)]) -> (String, usize) {
+    let mut out = String::with_capacity(tex.len());
+    let mut changed = 0;
+    let mut rest = tex;
+    while let Some(at) = rest.find('\\') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let name_len = rest[1..].find(|c: char| !c.is_ascii_alphabetic()).map_or(rest.len() - 1, |n| n);
+        let name = &rest[1..1 + name_len];
+        if !name.contains("cite") {
+            // The backslash and an ASCII name are single bytes each.
+            out.push_str(&rest[..1 + name_len]);
+            rest = &rest[1 + name_len..];
+            continue;
+        }
+        // Copy the command, a star, and any [..] arguments as they are.
+        let mut i = 1 + name_len;
+        if rest[i..].starts_with('*') {
+            i += 1;
+        }
+        loop {
+            let ws = rest[i..].len() - rest[i..].trim_start().len();
+            if rest[i + ws..].starts_with('[') {
+                match rest[i + ws..].find(']') {
+                    Some(close) => i += ws + close + 1,
+                    None => break,
+                }
+            } else {
+                break;
+            }
+        }
+        let ws = rest[i..].len() - rest[i..].trim_start().len();
+        let open = i + ws;
+        let close = rest[open..].find('}').map(|c| open + c);
+        match (rest[open..].starts_with('{'), close) {
+            (true, Some(close)) => {
+                out.push_str(&rest[..open + 1]);
+                let keys: Vec<String> = rest[open + 1..close]
+                    .split(',')
+                    .map(|k| {
+                        let trimmed = k.trim();
+                        match renames.iter().find(|(old, _)| old == trimmed) {
+                            Some((_, new)) => {
+                                changed += 1;
+                                k.replacen(trimmed, new, 1)
+                            }
+                            None => k.to_string(),
+                        }
+                    })
+                    .collect();
+                out.push_str(&keys.join(","));
+                out.push('}');
+                rest = &rest[close + 1..];
+            }
+            _ => {
+                out.push_str(&rest[..i]);
+                rest = &rest[i..];
+            }
+        }
+    }
+    out.push_str(rest);
+    (out, changed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +161,17 @@ mod tests {
         assert_eq!(suffix(0), "a");
         assert_eq!(suffix(25), "z");
         assert_eq!(suffix(26), "aa");
+    }
+
+    #[test]
+    fn renames_citations_in_tex() {
+        let renames = vec![("tb".to_string(), "knuth1984texbook".to_string()), ("x".to_string(), "y".to_string())];
+        let tex = r"As in \cite{tb}, see \citep[p.~3]{ x, other} and \textcite*[see][]{tb}. Not \ref{tb} or \emph{x}. Caf\'e \nocite{x}";
+        let (out, n) = rename_citations(tex, &renames);
+        assert_eq!(
+            out,
+            r"As in \cite{knuth1984texbook}, see \citep[p.~3]{ y, other} and \textcite*[see][]{knuth1984texbook}. Not \ref{tb} or \emph{x}. Caf\'e \nocite{y}"
+        );
+        assert_eq!(n, 4);
     }
 }

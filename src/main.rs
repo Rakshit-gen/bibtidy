@@ -37,6 +37,9 @@ enum Command {
         /// Save the renamed entries back to the file instead of only listing changes
         #[arg(short, long)]
         write: bool,
+        /// Also update \cite commands in these .tex files (needs --write)
+        #[arg(long, requires = "write")]
+        tex: Vec<PathBuf>,
     },
 }
 
@@ -65,22 +68,31 @@ fn main() -> Result<()> {
                 print!("{out}");
             }
         }
-        Command::Keys { file, write } => {
+        Command::Keys { file, write, tex } => {
             let mut bib = load(&file)?;
             let new = keys::assign(&bib.entries);
-            let mut changed = 0;
+            let mut renames = Vec::new();
             for (e, k) in bib.entries.iter_mut().zip(new) {
                 if e.key != k {
                     println!("{} -> {k}", e.key);
-                    e.key = k;
-                    changed += 1;
+                    renames.push((std::mem::replace(&mut e.key, k.clone()), k));
                 }
             }
+            let changed = renames.len();
             if changed == 0 {
                 eprintln!("Every key already follows the pattern.");
             } else if write {
                 std::fs::write(&file, write::bib(&bib)).with_context(|| format!("couldn't write {}", file.display()))?;
-                eprintln!("Renamed {changed} keys in {}. Citations in your .tex files still use the old ones.", file.display());
+                eprintln!("Renamed {changed} keys in {}.", file.display());
+                for path in &tex {
+                    let text = std::fs::read_to_string(path).with_context(|| format!("couldn't read {}", path.display()))?;
+                    let (text, n) = keys::rename_citations(&text, &renames);
+                    std::fs::write(path, text).with_context(|| format!("couldn't write {}", path.display()))?;
+                    eprintln!("Updated {n} citations in {}.", path.display());
+                }
+                if tex.is_empty() {
+                    eprintln!("Citations in your .tex files still use the old keys; pass them with --tex to update them.");
+                }
             }
         }
     }
