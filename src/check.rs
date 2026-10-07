@@ -83,3 +83,51 @@ pub fn bad_values(e: &Entry) -> Vec<Problem> {
     }
     out
 }
+
+/// Words in the title with capitals after the first letter, outside braces.
+/// Most BibTeX styles lower-case titles, so "DNA" prints as "dna" unless it
+/// is written {DNA}.
+pub fn unprotected_caps(e: &Entry) -> Vec<Problem> {
+    let Some(title) = e.get("title") else { return Vec::new() };
+    let mut depth = 0;
+    let mut math = false;
+    let mut word = String::new();
+    let mut found: Vec<String> = Vec::new();
+    let mut finish = |word: &mut String| {
+        if word.chars().skip(1).any(char::is_uppercase) && !found.contains(word) {
+            found.push(word.clone());
+        }
+        word.clear();
+    };
+    let mut prev = ' ';
+    for c in title.chars() {
+        match c {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            '$' if prev != '\\' => math = !math,
+            _ => {}
+        }
+        // A command like \LaTeX or a letter inside braces or math is safe.
+        if depth == 0 && !math && c.is_alphanumeric() && prev != '\\' {
+            word.push(c);
+        } else if depth == 0 && !math && (c.is_alphanumeric() || c == '\\') {
+            word.clear();
+        } else {
+            finish(&mut word);
+        }
+        if c == '\\' {
+            prev = '\\';
+        } else if !c.is_alphabetic() {
+            prev = c;
+        }
+    }
+    finish(&mut word);
+    if found.is_empty() {
+        return Vec::new();
+    }
+    let braced: Vec<String> = found.iter().map(|w| format!("{{{w}}}")).collect();
+    vec![Problem {
+        key: e.key.clone(),
+        message: format!("title has capitals most styles will lower-case; write {}", braced.join(", ")),
+    }]
+}
