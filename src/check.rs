@@ -192,10 +192,27 @@ pub fn duplicate_keys(entries: &[Entry]) -> Vec<Problem> {
     out
 }
 
+/// Fields given more than once. BibTeX reports "repeated entry" and keeps
+/// only the first, so a corrected title added below the old one is lost.
+pub fn repeated_fields(e: &Entry) -> Vec<Problem> {
+    let mut out = Vec::new();
+    for (i, (name, _)) in e.fields.iter().enumerate() {
+        let firsts = e.fields[..i].iter().filter(|(n, _)| n == name).count();
+        if firsts == 1 {
+            out.push(Problem {
+                key: e.key.clone(),
+                message: format!("{name} is given more than once; BibTeX uses the first"),
+            });
+        }
+    }
+    out
+}
+
 /// Every check, in file order.
 pub fn all(entries: &[Entry], caps: bool) -> Vec<Problem> {
     let mut out = duplicate_keys(entries);
     for e in entries {
+        out.extend(repeated_fields(e));
         out.extend(missing_fields(e));
         out.extend(bad_values(e));
         if caps {
@@ -218,6 +235,15 @@ mod tests {
 
     fn messages(problems: Vec<Problem>) -> Vec<String> {
         problems.into_iter().map(|p| p.message).collect()
+    }
+
+    #[test]
+    fn repeated_fields_are_named_once() {
+        let e = entry("@misc{a, title={One}, Title={Two}, note={n}, title={Three}}");
+        assert_eq!(
+            messages(repeated_fields(&e)),
+            ["title is given more than once; BibTeX uses the first"]
+        );
     }
 
     #[test]
