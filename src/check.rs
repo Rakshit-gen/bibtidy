@@ -208,9 +208,37 @@ pub fn repeated_fields(e: &Entry) -> Vec<Problem> {
     out
 }
 
+/// crossref targets that are missing, or that come before the entry. BibTeX
+/// reads the file in one pass, so it only fills in fields from an entry
+/// that is further down.
+pub fn bad_crossrefs(entries: &[Entry]) -> Vec<Problem> {
+    let mut out = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        let Some(target) = e.get("crossref").map(str::trim) else {
+            continue;
+        };
+        let at = entries
+            .iter()
+            .position(|o| o.key.eq_ignore_ascii_case(target));
+        let message = match at {
+            None => format!("crossref {target} isn't in the file"),
+            Some(j) if j < i => {
+                format!("crossref {target} comes before this entry; BibTeX needs it after")
+            }
+            Some(_) => continue,
+        };
+        out.push(Problem {
+            key: e.key.clone(),
+            message,
+        });
+    }
+    out
+}
+
 /// Every check, in file order.
 pub fn all(entries: &[Entry], caps: bool) -> Vec<Problem> {
     let mut out = duplicate_keys(entries);
+    out.extend(bad_crossrefs(entries));
     for e in entries {
         out.extend(repeated_fields(e));
         out.extend(missing_fields(e));
@@ -235,6 +263,25 @@ mod tests {
 
     fn messages(problems: Vec<Problem>) -> Vec<String> {
         problems.into_iter().map(|p| p.message).collect()
+    }
+
+    #[test]
+    fn crossrefs_must_exist_and_come_later() {
+        let bib = parse(
+            "@proceedings{early, title={P}}\n\
+             @inproceedings{a, crossref={early}}\n\
+             @inproceedings{b, crossref={Late}}\n\
+             @inproceedings{c, crossref={gone}}\n\
+             @proceedings{late, title={Q}}",
+        )
+        .unwrap();
+        assert_eq!(
+            messages(bad_crossrefs(&bib.entries)),
+            [
+                "crossref early comes before this entry; BibTeX needs it after",
+                "crossref gone isn't in the file",
+            ]
+        );
     }
 
     #[test]
