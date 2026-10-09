@@ -105,6 +105,7 @@ fn main() -> Result<()> {
                     renames.push((std::mem::replace(&mut e.key, k.clone()), k));
                 }
             }
+            keys::rename_references(&mut bib.entries, &renames);
             let changed = renames.len();
             if changed == 0 {
                 eprintln!("Every key already follows the pattern.");

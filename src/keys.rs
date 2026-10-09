@@ -75,6 +75,30 @@ fn suffix(mut n: usize) -> String {
 /// Rewrites keys inside \\cite, \\citep, \\textcite, \\nocite and the other
 /// commands with "cite" in their name, keeping [optional] arguments and
 /// spacing. Returns the new text and how many keys changed.
+/// Points crossref and xref fields at the new keys. Left alone they name a
+/// key that no longer exists, and the entry loses everything it inherited,
+/// like the booktitle of the proceedings it's in. Keys match ignoring case,
+/// as in BibTeX.
+pub fn rename_references(entries: &mut [Entry], renames: &[(String, String)]) -> usize {
+    let mut n = 0;
+    for e in entries {
+        for (name, value) in &mut e.fields {
+            if name != "crossref" && name != "xref" {
+                continue;
+            }
+            let target = value.trim();
+            if let Some((_, new)) = renames
+                .iter()
+                .find(|(old, _)| old.eq_ignore_ascii_case(target))
+            {
+                *value = new.clone();
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
 pub fn rename_citations(tex: &str, renames: &[(String, String)]) -> (String, usize) {
     let mut out = String::with_capacity(tex.len());
     let mut changed = 0;
@@ -178,6 +202,18 @@ mod tests {
         assert_eq!(suffix(0), "a");
         assert_eq!(suffix(25), "z");
         assert_eq!(suffix(26), "aa");
+    }
+
+    #[test]
+    fn renames_crossrefs() {
+        let mut bib = parse("@inproceedings{p, crossref={Procs}, xref = { other }}").unwrap();
+        let renames = vec![
+            ("procs".to_string(), "ng2020proc".to_string()),
+            ("other".to_string(), "lee2019x".to_string()),
+        ];
+        assert_eq!(rename_references(&mut bib.entries, &renames), 2);
+        assert_eq!(bib.entries[0].get("crossref"), Some("ng2020proc"));
+        assert_eq!(bib.entries[0].get("xref"), Some("lee2019x"));
     }
 
     #[test]
