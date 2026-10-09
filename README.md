@@ -82,6 +82,9 @@ Fixed 4 fields.
 - Years that aren't four digits, page ranges with one hyphen, DOIs given as links or not starting with `10.`,
   and URLs with spaces.
 - Keys used twice, ignoring case as BibTeX does.
+- Fields given twice in one entry, since BibTeX only keeps the first.
+- `crossref` targets that are missing or come before the entry that uses them. `keys` renames them along with
+  the entries.
 - Words in titles with capitals after the first letter that aren't in braces. Most styles lower-case titles,
   so `BERT` prints as "Bert" unless written `{BERT}`. `--no-caps` skips this.
 
